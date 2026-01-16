@@ -1,0 +1,83 @@
+import simpy
+import random
+import statistics
+
+#Simulation parameters
+
+random_seed = 42
+num_id_checkers = 3 #to be varied
+num_scanners = 4 #to be varied
+arrival_rate_busy = 50 #lambda for busy airport
+arrival_rate_normal = 5 #lambda for normal airport
+service_rate_id_check = 0.75 #mean exponential service time
+scan_min_time = 0.5 #uniform distribution min
+scan_max_time = 1 #uniform distribution max
+sim_duration = 480 #8 hours in minutes
+num_repetitions = 10 #to get a revialbe average
+
+#DEFINE THE PASSENGER PROCESS: ARRIVAL, ID CHECK, PERSONAL CHECK
+
+def passenger(env, name, id_check_resource, scanner_resource, wait_times):
+    arrival_time = env.now
+    print(f'{env.now:.2f}: {name} arrives')
+
+    #ID/Boarding pass check
+    with id_check_resource.request() as req:
+        yield req
+        time_start_id = env.now
+        wait_for_id = time_start_id - arrival_time
+        yield env.timeout(random.expovariate(1.0 / service_rate_id_check))
+        time_end_id = env.now
+        print(f'{env.now:.2f}: {name} finished ID check after waiting {wait_for_id:.2f} min.')
+    
+    #Personal check (Shortest Queue)
+    scanner_queues = [res.count + len(res.queue) for res in scanner_resource]
+    shortest_queue_index = scanner_queues.index(min(scanner_queues))
+    shortest_scanner = scanner_resource[shortest_queue_index]
+
+    with shortest_scanner.request() as req:
+        yield req
+        time_start_scan = env.now
+        wait_for_scan = time_start_scan - time_end_id
+        yield env.timeout(random.uniform(scan_min_time, scan_max_time))
+        time_end_scan = env.now
+        total_wait = (time_end_scan - arrival_time) - (service_rate_id_check + (scan_min_time + scan_max_time)/2)
+        wait_times.append(total_wait)
+        print(f'{env.now:.2f}: {name} finished personal check after waiting {wait_for_scan: .2f} min.')
+
+#IMPLEMENT THE ARRIVAL GENERATOR
+def setup_airport(env, num_id, num_scanners, arrival_rate, wait_times):
+    id_check = simpy.Resource(env, capacity=num_id)
+    scanners = [simpy.Resource(env, capacity=1) for _ in range(num_scanners)]
+
+    #Create the initial passenger arrivals
+    passenger_counter = 0
+    while True:
+        yield env.timeout(random.expovariate(arrival_rate))
+        passenger_counter += 1
+        env.process(passenger(env,f'Passenger {passenger_counter}', id_check, scanners, wait_times))
+
+
+#RUN THE SIMULATION AND VARY PARAMETERS
+# The run_simulation function will perform a single simulation run and collect the average wait time.
+
+def run_simulation(num_id, num_scanners, arrival_rate):
+    #runs a single simulation and returns the average wait time
+    random.seed(random_seed)
+    wait_times = []
+    env = simpy.Environment()
+    env.process(setup_airport(env, num_id, num_scanners, arrival_rate, wait_times))
+    env.run(until=sim_duration)
+    return statistics.mean(wait_times) if wait_times else 0
+
+def vary_parameters():
+    for num_id in range(1, 10):
+        for num_scanners in range(1, 10):
+            avg_wait = run_simulation(num_id, num_scanners, arrival_rate_normal)
+            print(f'ID chechers: {num_id}, scanners: {num_scanners}, average wait time: {avg_wait:.2f} min')
+            if avg_wait < 15:
+                print(f'Average wait time is below 15 minutes with {num_id} ID checkers and {num_scanners} scanners.')
+                return "exit once a valid configuration is found"
+
+if __name__=='__main__':
+ vary_parameters()

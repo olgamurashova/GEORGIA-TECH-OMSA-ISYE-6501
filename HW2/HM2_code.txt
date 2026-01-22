@@ -1,0 +1,242 @@
+# Question 3.1(A) 
+setwd("~/GT HOMEWORK/Homework1_ISYE6501/Homework1_ISYE6501/data 2.2")
+data <- read.table("credit_card_data-headers.txt", header = TRUE, sep= "\t")
+
+#convert first 10 columns into matrix
+x <- as.matrix(data[,1:10])
+
+# convert R1 values (11th column) into a factor
+y <- as.factor(data[,11])
+
+#Try multiple k values for kNN
+k_values <- c(1,3,5,7,10)
+
+
+#loop through k_values
+for (k in k_values) {
+  kknn_model <- kknn(R1 ~ ., train=data, test=data, k=k, kernel = "optimal", scale = TRUE)
+  
+  pred <- fitted(kknn_model)
+  
+  #accuracy
+  accuracy <- mean(pred == data$R1)
+  
+  #concatenate results
+  cat("For k =", k, "accuracy =", accuracy, "\n")
+  
+    
+  }
+  
+For k = 1 accuracy = 1 
+For k = 3 accuracy = 0.6850153 
+For k = 5 accuracy = 0.5764526 
+For k = 7 accuracy = 0.4923547 
+For k = 10 accuracy = 0.4051988 
+
+
+
+#Cross-validation using k-fold
+
+#number of folds
+k_folds <- 5
+
+set.seed(123)
+
+#number of rows
+num_rows <- nrow(data)
+
+k_values <- c(1,3,5,7,10)
+
+library('cvTools')
+
+#create folds
+
+folds <- cut(seq(1, num_rows), breaks = k_folds, labels = FALSE)
+       
+#loop through folds
+for (fold in 1:k_folds) {
+  train <- data[folds != fold, ]
+  test <- data[folds == fold, ]
+
+  max_score <- 0
+  
+#loop through k values
+ for (kv in seq_along(k_values)) {
+  k <- k_values[kv]
+  
+  model <- kknn(R1 ~., train = train, test = test, k = k, kernel = "optimal", scale = TRUE)
+  
+  #fit model
+  pred <- fitted(model)
+  #model accuracy
+  model_acc <- mean(pred == test$R1)
+  
+  #print results
+  cat("Fold =", fold, "k=", k, "accuracy=", model_acc,"\n")
+  
+  
+  if(model_acc > max_score){
+    max_score <- model_acc
+    best_k <- k
+    
+    
+  }
+ }
+  
+cat("Fold =", fold, "k=", best_k, "accuracy=", max_score,"\n")
+
+}
+
+Fold = 1 k= 1 accuracy= 0.6412214 
+Fold = 1 k= 3 accuracy= 0.480916 
+Fold = 1 k= 5 accuracy= 0.4198473 
+Fold = 1 k= 7 accuracy= 0.3206107 
+Fold = 1 k= 10 accuracy= 0.2900763 
+Fold = 1 k= 1 accuracy= 0.6412214 
+Fold = 2 k= 1 accuracy= 0.7862595 
+Fold = 2 k= 3 accuracy= 0.4961832 
+Fold = 2 k= 5 accuracy= 0.4045802 
+Fold = 2 k= 7 accuracy= 0.3435115 
+Fold = 2 k= 10 accuracy= 0.1908397 
+Fold = 2 k= 1 accuracy= 0.7862595 
+Fold = 3 k= 1 accuracy= 0.8307692 
+Fold = 3 k= 3 accuracy= 0.7384615 
+Fold = 3 k= 5 accuracy= 0.6692308 
+Fold = 3 k= 7 accuracy= 0.5846154 
+Fold = 3 k= 10 accuracy= 0.4384615 
+Fold = 3 k= 1 accuracy= 0.8307692 
+Fold = 4 k= 1 accuracy= 0.8396947 
+Fold = 4 k= 3 accuracy= 0.6183206 
+Fold = 4 k= 5 accuracy= 0.5114504 
+Fold = 4 k= 7 accuracy= 0.4274809 
+Fold = 4 k= 10 accuracy= 0.351145 
+Fold = 4 k= 1 accuracy= 0.8396947 
+Fold = 5 k= 1 accuracy= 0.8244275 
+Fold = 5 k= 3 accuracy= 0.6564885 
+Fold = 5 k= 5 accuracy= 0.5267176 
+Fold = 5 k= 7 accuracy= 0.4122137 
+Fold = 5 k= 10 accuracy= 0.3435115 
+Fold = 5 k= 1 accuracy= 0.8244275 
+--------------------------------------------------------------------------------
+#Question 3.1(B) 
+Split data into training, validation, and test data sets and use knn model:
+# 60% training
+# 20% validation
+# 20% test
+
+set.seed(123)
+
+n_rows <- nrow(data)
+
+library("caTools")
+
+# 60% training
+
+split <- sample.split(data$R1, SplitRatio = 0.6)
+train <- subset(data, split = TRUE)
+rem_40 <- subset(data, split==FALSE)
+
+#split the remaining into test and validation 20%/20%
+
+split2 <- sample.split(rem_40$R1, SplitRatio = 0.5)
+validation <- subset(rem_40, split2 == TRUE)
+test <- subset(rem_40, split2==FALSE)
+
+#train kNN model using training set and validation set to predict on
+#install.packages('kknn')
+#library('kknn')
+
+k_values <- c(1,3,5,7,10)
+
+for (k in k_values){
+  model <- kknn(R1 ~ ., train=train, test=validation, k=k, kernel="optimal", scale=TRUE)
+  
+  pred <- fitted(model)
+  
+  val_accuracy <- mean(pred == validation$R1)
+  
+  cat("k =", k, "validation accuracy =", val_accuracy, "\n")
+
+
+}
+
+k = 1 validation accuracy = 1 
+k = 3 validation accuracy = 0.7099237 
+k = 5 validation accuracy = 0.610687 
+k = 7 validation accuracy = 0.4961832 
+k = 10 validation accuracy = 0.3664122 
+
+# Use k 1,3,5 to evaluate on the test set
+
+k_135 <- c(1,3,5)
+
+for (k in k_135){
+  test_model <- kknn(R1 ~ ., train = train, test = test, k = k, kernel="optimal", scale = TRUE)
+  
+  pred_test <- fitted(test_model)
+  
+  test_accuracy <- mean(pred_test == test$R1)
+  
+  cat("k =", k, "test accuracy =", test_accuracy, "\n")
+  
+  
+}
+
+k = 1 test accuracy = 1 
+k = 3 test accuracy = 0.6461538 
+k = 5 test accuracy = 0.5692308 
+
+k = 3, k = 5 give lower accuracy, but more realistic. 
+
+--------------------------------------------------------------------------------
+Question 4.2
+
+data <- read.table("iris.txt", header = TRUE)
+
+
+set.seed(123)
+
+# 3 centers as there are 3 types of iris, columns 1:4 as first 4 column are predictors and the last column is reponse.
+iris_kmeans <- kmeans(data[,1:4], centers = 3, nstart=20)
+
+#clustering results
+
+table(iris_kmeans$cluster, data$Species)
+
+    setosa versicolor  virginica
+  1     50          0         0
+  2      0         48        14
+  3      0          2        36
+
+
+#trying columns 1-2 (sepal) as predictors
+
+sepal_kmeans <- kmeans(data[,1:2], centers = 3, nstart=20)
+
+table(sepal_kmeans$cluster,data$Species)
+
+    setosa versicolor  virginica
+  1     50          0         0
+  2      0         38        15
+  3      0         12        35
+
+# trying columns 3-4 (petal) as predictors
+
+petal_kmeans <- kmeans(data[,3:4], centers = 3, nstart = 20)
+
+table(petal_kmeans$cluster, data$Species)
+
+       setosa      versicolor      virginica
+1           0              48              4
+2          50               0              0
+3           0               2             46
+
+#calculating accuracy
+
+n_rows <- nrow(data)
+
+accuracy <- sum(apply(table(petal_kmeans$cluster, data$Species), 1,max)) / n_rows
+
+accuracy
+
+[1] 0.96
